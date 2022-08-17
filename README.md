@@ -7,7 +7,7 @@
 2. 在顶部“Settings”标签中找到“Secrets”→“Actions”，使用“New repository secret”新建两个秘钥：
   - “USERNAME”，填写用户名；
   - “PASSWORD”，填写密码。
-3. 此时GitHub Actions已启用，将会在北京时间每天00:00（UTC 16:00）开始执行（由于GitHub Actions自身限制，执行时间可能会推迟15分钟左右）。
+3. 此时GitHub Actions已启用，将会在北京时间每天00:00（UTC 16:00）、12:00（UTC 04:00）开始执行（由于GitHub Actions自身限制，执行时间可能会推迟15分钟左右）。
 4. 也可选择手动执行，在顶部“Actions”标签中选择“Auto Attendance”→“Run workflow”→“Run workflow”。
 
 ### 本地执行
@@ -17,5 +17,8 @@
 4. 如需自动运行，可设置定时任务，例如Ubuntu下可使用Cron：
 
 ```cron
-0 0 * * * cd /home/username/TjuptAutoAttendance && python3 main.py >> /home/username/TjuptAutoAttendance/out.log 2>&1
+0 0,12 * * * cd /home/username/TjuptAutoAttendance && python3 main.py >> /home/username/TjuptAutoAttendance/out.log 2>&1
 ```
+
+## 已知问题
+- 由于本项目代码依赖于豆瓣的 API，可能存在不稳定而导致未找到正确选项签到失败的情况。暂时的解决方案为增加尝试签到的次数。
