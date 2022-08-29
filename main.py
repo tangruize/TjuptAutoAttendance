@@ -135,6 +135,7 @@ class Bot:
     while True:
       if self.auto_attendance_once():
         self.log(f"Attended successfully")
+        self.save_douban_data()
         return True
       time.sleep(random.random() * 5)
       try_time -= 1
@@ -142,6 +143,7 @@ class Bot:
         self.log(f"Attend error, try again ({try_time} left)")
       else:
         self.log(f"Attend error after 5 tries")
+        self.save_douban_data()
         return False
 
   def auto_attendance_once(self) -> bool:
@@ -182,8 +184,6 @@ class Bot:
             "captcha_image": captcha_image_url,
           })
           self.log(f"Available choice found: {json.dumps(available_choices[-1], ensure_ascii=False)}")
-
-      self.save_douban_data()
       
       if len(available_choices) == 0:
         self.log(f"No choice found, id: {captcha_image_id}")
