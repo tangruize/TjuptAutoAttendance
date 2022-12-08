@@ -27,6 +27,26 @@ class Bot:
     })
     self.session.cookies = self.load_cookies()
 
+    self.douban_session = requests.Session()
+    self.douban_session.headers.update({
+      "Accept": "*/*",
+      "Accept-Encoding": "gzip, deflate, br",
+      "Accept-Language": "zh-CN,zh-TW;q=0.9,zh;q=0.8",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "DNT": "1",
+      "Host": "movie.douban.com",
+      "Pragma": "no-cache",
+      "Referer": "https://movie.douban.com/",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36",
+      "sec-ch-ua": "\"Chromium\";v=\"100\", \" Not A;Brand\";v=\"99\", \"Google Chrome\";v=\"100\"",
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": "\"Windows\"",
+      "Sec-Fetch-Dest": "empty",
+      "Sec-Fetch-Mode": "cors",
+      "Sec-Fetch-Site": "same-origin",
+      "X-Requested-With": "XMLHttpRequest"
+    })
     self.douban_data = self.load_douban_data()
   
   def log(self, *args, **kw) -> None:
@@ -50,7 +70,7 @@ class Bot:
       return requests.cookies.RequestsCookieJar()
   
   def login(self) -> bool:
-    try_time = 5
+    try_time = 10
     while True:
       _ = self.session.get(f"{self.base_url}login.php")
       resopnse = self.session.post(f"{self.base_url}takelogin.php", {
@@ -68,7 +88,7 @@ class Bot:
       if try_time > 0:
         self.log(f"Log in error, try again ({try_time} left)")
       else:
-        self.log(f"Log in error after 5 tries")
+        self.log(f"Log in error after 10 tries")
         return False
   
   def load_douban_data(self) -> dict:
@@ -100,10 +120,7 @@ class Bot:
       return self.douban_data[title]
 
     time.sleep(random.random() * 5)
-    response = requests.get(f"https://movie.douban.com/j/subject_suggest?q={requests.utils.requote_uri(title)}", headers={
-      "User-Agent": self.session.headers.get("User-Agent"),
-      "Referer": "https://movie.douban.com/"
-    })
+    response = self.douban_session.get(f"https://movie.douban.com/j/subject_suggest?q={requests.utils.requote_uri(title)}")
     try:
       url_id = re.findall(r"(?<=/)p\d+(?=\.)", response.json()[0]["img"])[0]
       self.douban_data[title] = url_id
@@ -118,6 +135,7 @@ class Bot:
     while True:
       if self.auto_attendance_once():
         self.log(f"Attended successfully")
+        self.save_douban_data()
         return True
       time.sleep(random.random() * 5)
       try_time -= 1
@@ -125,6 +143,7 @@ class Bot:
         self.log(f"Attend error, try again ({try_time} left)")
       else:
         self.log(f"Attend error after 5 tries")
+        self.save_douban_data()
         return False
 
   def auto_attendance_once(self) -> bool:
@@ -143,9 +162,13 @@ class Bot:
 
       tree = BeautifulSoup(text, "html.parser")
 
-      captcha_image = tree.select_one(".captcha > tr > td > img").attrs["src"]
-      captcha_image_id = re.findall(r"(?<=/)p\d+(?=\.)", captcha_image)[0]
-      captcha_options = re.findall(r'<input name="answer" type="radio" value="(\d+-\d+-\d+ \d+:\d+:\d+&amp;(\d+))"/>([^<>]*?)<', str(tree.select_one(".captcha form table")))
+      captcha_image = tree.select_one(".captcha > tr > td > img")
+      if not captcha_image:
+        self.log("No captcha image found")
+        return False
+      captcha_image_url = captcha_image.attrs["src"]
+      captcha_image_id = re.findall(r"(?<=/)p\d+(?=\.)", captcha_image_url)[0]
+      captcha_options = set(re.findall(r'<input name="answer" type="radio" value="(\d+-\d+-\d+ \d+:\d+:\d+&amp;(\d+))"/>([^<>]*?)<', str(tree.select_one(".captcha form table"))))
 
       available_choices = []
 
@@ -158,17 +181,15 @@ class Bot:
             "id": id,
             "title": title,
             "url_id": url_id,
-            "captcha_image": captcha_image,
+            "captcha_image": captcha_image_url,
           })
           self.log(f"Available choice found: {json.dumps(available_choices[-1], ensure_ascii=False)}")
-
-      self.save_douban_data()
       
       if len(available_choices) == 0:
-        self.log(f"No choice found")
+        self.log(f"No choice found, id: {captcha_image_id}")
         return False
       elif len(available_choices) > 1:
-        self.log(f"{len(available_choices)} choices found")
+        self.log(f"{len(available_choices)} choices found, id: {captcha_image_id}")
         return False
       else:
         data = {
@@ -214,4 +235,5 @@ if __name__ == "__main__":
       config[key] = value
 
   bot = Bot(**config)
-  bot.auto_attendance()
+  if not bot.auto_attendance():
+    raise
